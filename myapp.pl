@@ -9,8 +9,13 @@ plugin 'PODRenderer';
 # setting
 my $config = {
     type => {
-        line   => { key => 'Line',   name => '折れ線' },
-        column => { key => 'Column', name => '棒'     },
+        area    => { key => 'AreaChart',        name => 'エリア'     },
+        bar     => { key => 'BarChart',         name => '横棒'       },
+        bubble  => { key => 'BubbleChart',      name => 'バブル'     },
+        column  => { key => 'ColumnChart',      name => '縦棒'       },
+        line    => { key => 'LineChart',        name => '折れ線'     },
+        pie     => { key => 'PieChart',         name => 'パイ'       },
+        stepped => { key => 'SteppedAreaChart', name => '階段'       },
     },
 };
 
@@ -273,11 +278,12 @@ __DATA__
     ]);
 
     var options = {
-      width: <%= $size->{w} %>, height: <%= $size->{h} %>,
+      //width: <%= $size->{w} %>, height: <%= $size->{h} %>,
+      width: window.innerWidth, height: window.innerHeight,
       title: '<%= title %>'
     };
 
-    var chart = new google.visualization.<%= $config->{type}->{$type}->{key} %>Chart(document.getElementById('graph'));
+    var chart = new google.visualization.<%= $config->{type}->{$type}->{key} %>(document.getElementById('graph'));
     chart.draw(data, options);
   }
 </script>
