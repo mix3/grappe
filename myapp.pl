@@ -200,7 +200,7 @@ __DATA__
 
     data.addRows([
 % for my $r (@$rows) {
-      [<%= b(join(",", @$r)) %>],
+      [<%= Mojo::ByteStream->new(join(",", @$r)) %>],
 % }
     ]);
 
