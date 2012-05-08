@@ -6,41 +6,66 @@ use utf8;
 # Documentation browser under "/perldoc"
 plugin 'PODRenderer';
 
+# setting
 my $config = {
     type => {
-        line   => { type => 'Line',   name => '折れ線' },
-        column => { type => 'Column', name => '棒'     },
+        line   => { key => 'Line',   name => '折れ線' },
+        column => { key => 'Column', name => '棒'     },
     },
 };
 
+# init
 my $tmp = app->home->rel_dir('tmp');
 mkdir($tmp);
 
-# index
+# ----------------------------------------------
+# URL設計
+
+# 新規作成画面    : get  /
+# 生データ表示    : get  /graph/{id}
+# 棒グラフ表示    : get  /column/{id}
+# 線グラフ表示    : get  /line/{id}
+
+# 生データ編集画面: get  /graph/{id}/edit
+# 棒グラフ編集画面: get  /column/{id}/edit => /graph/{id}/edit redirect
+# 線グラフ編集画面: get  /line/{id}/edit => /graph/{id}/edit redirect
+
+# 新規作成        : post /
+# 更新            : post /graph/{id}
+
+# ----------------------------------------------
+# under とか使ってもっと使い回せるはずなんだけど
+# ちょっと良くわからなくなったのでベタ書き
+
 get '/' => sub {
     my $self = shift;
     $self->render(config => $config);
 } => 'index';
 
-# graph
+get '/graph/:key' => sub {
+    my $self = shift;
+
+    my $key = $self->param('key');
+
+    my $input = _get({ key => $key });
+
+    unless ($input) {
+        return $self->render_not_found;
+    }
+
+    $self->render(
+        input => $input
+    );
+} => 'raw_view';
+
 get '/:type/:key' => sub {
     my $self = shift;
 
-    my $type = $self->param('type');
-    my $key  = $self->param('key');
-    my $path = "$tmp/$key";
+    my $key = $self->param('key');
 
-    unless (defined $config->{type}->{$type}) {
-        return $self->render_not_found;
-    }
+    my $input = _get({ key => $key });
 
-    unless (-f $path) {
-        return $self->render_not_found;
-    }
-
-    my $result = _get({ type => $type, key => $key });
-
-    unless ($result) {
+    unless ($input) {
         return $self->render_not_found;
     }
 
@@ -48,7 +73,7 @@ get '/:type/:key' => sub {
     my $rows    = [];
 
     my $i = 0;
-    for my $line (split(/\r?\n/, $result)) {
+    for my $line (split(/\r?\n/, $input)) {
         my @data = split(/\s/, $line);
         unless ($i++) {
             $columns = \@data;
@@ -66,47 +91,82 @@ get '/:type/:key' => sub {
         },
         columns => $columns,
         rows    => $rows,
-        type    => $type || 'Line',
+        type    => $self->param('type') || 'line',
     );
-} => 'graph';
+} => 'view';
 
-# create api
-# update api
-under sub {
+get '/graph/:key/edit' => sub {
     my $self = shift;
 
-    my $result = _create_or_update($self->req->params->to_hash);
+    my $key = $self->param('key');
 
-    if ($result->{error}) {
-        return $self->render_exception(
-            $result->{message}
-        );
+    my $input = _get({ key => $key });
+
+    unless ($input) {
+        return $self->render_not_found;
     }
 
-    $self->redirect_to('/'.$result->{type}.'/'.$result->{key});
+    $self->render(
+        config => $config,
+        input  => $input,
+        key    => $key,
+    );
+} => 'raw_edit';
+
+get '/:type/:key/edit' => sub {
+    my $self = shift;
+    $self->redirect_to('/graph/'.$self->param('key').'/edit');
 };
 
-post '/';
+post '/' => sub {
+    my $self = shift;
 
-post '/:type';
+    my $type  = $self->param('type') || 'graph';
+    my $input = $self->param('input');
+    my $key   = $self->param('key');
 
-post '/:type/:key';
+    my $result = _create_or_update({
+        input => $input,
+        key   => $key,
+    });
+
+    if ($result->{error}) {
+        $self->render_exception($result->{message});
+    }
+
+    $self->redirect_to('/'.$type.'/'.$result->{key});
+};
+
+post '/graph/:key' => sub {
+    my $self = shift;
+
+    my $type  = $self->param('type') || 'graph';
+    my $input = $self->param('input');
+    my $key   = $self->param('key');
+
+    my $result = _create_or_update({
+        input => $input,
+        key   => $key,
+    });
+
+    if ($result->{error}) {
+        $self->render_exception($result->{message});
+    }
+
+    $self->redirect_to('/'.$type.'/'.$result->{key});
+};
 
 sub _create_or_update {
     my $args = shift;
 
-    unless ($args->{type} && $args->{input}) {
-        return { error => 1, message => 'require param: type, input' };
-    }
-
-    unless (defined $config->{type}->{$args->{type}}) {
-        return { error => 1, message => 'type is invalid' };
+    unless ($args->{input}) {
+        return { error => 1, message => 'require param: input' };
     }
 
     if ($args->{key}) {
         # update
         _update($args);
-        return { error => 0, type => $args->{type}, key => $args->{key} };
+        return { error => 0, key => $args->{key} };
     } else {
         # create
         my $key = _create($args);
@@ -115,7 +175,7 @@ sub _create_or_update {
             return { error => 1, message => 'create faild' };
         }
 
-        return { error => 0, type => $args->{type}, key => $key };
+        return { error => 0, key => $key };
     }
 }
 
@@ -132,7 +192,7 @@ sub _update {
 sub _create {
     my $args = shift;
 
-    my $checksum = md5_hex($args->{type}.$args->{input});
+    my $checksum = md5_hex($args->{input});
     my $path = "$tmp/$checksum";
 
     unless (-f $path) {
@@ -163,11 +223,12 @@ sub _get {
 }
 
 app->start;
+
 __DATA__
 
 @@ index.html.ep
 % layout 'default';
-% title 'NoPaste For Graph';
+% title 'Grappe';
 <h1><%= title %></h1>
 <form action="/" method="post">
 <textarea id="input" cols="100" rows="24" name="input"></textarea><br />
@@ -179,9 +240,16 @@ __DATA__
 <input type="submit" />
 </form>
 
-@@ graph.html.ep
+@@ raw_view.html.ep
 % layout 'default';
-% title 'NoPaste For Graph';
+% title 'Grappe';
+<h1><%= title %></h1>
+<pre><%= $input %></pre>
+
+@@ view.html.ep
+% layout 'default';
+% title 'Grappe';
+<h1><%= title %></h1>
 <script type="text/javascript" src="https://www.google.com/jsapi"></script>
 <script type="text/javascript">
   google.load("visualization", "1", {packages:["corechart"]});
@@ -209,11 +277,25 @@ __DATA__
       title: '<%= title %>'
     };
 
-    var chart = new google.visualization.<%= $config->{type}->{$type}->{type} %>Chart(document.getElementById('graph'));
+    var chart = new google.visualization.<%= $config->{type}->{$type}->{key} %>Chart(document.getElementById('graph'));
     chart.draw(data, options);
   }
 </script>
 <div id="graph" />
+
+@@ raw_edit.html.ep
+% layout 'default';
+% title 'Grappe';
+<h1><%= title %></h1>
+<form action="/graph/<%= $key %>" method="post">
+<textarea id="input" cols="100" rows="24" name="input"><%= $input %></textarea><br />
+<select name="type">
+% for my $k (keys %{$config->{type}}) {
+  <option value="<%= $k %>"><%= $config->{type}->{$k}->{name} %></option>
+% }
+</select>
+<input type="submit" />
+</form>
 
 @@ layouts/default.html.ep
 <!DOCTYPE html>
