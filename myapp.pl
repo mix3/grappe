@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use Mojolicious::Lite;
 use Digest::MD5 'md5_hex';
+use Encode;
 use utf8;
 
 # Documentation browser under "/perldoc"
@@ -79,7 +80,7 @@ get '/:type/:key' => sub {
 
     my $i = 0;
     for my $line (split(/\r?\n/, $input)) {
-        my @data = split(/\s/, $line);
+        my @data = split(/[\s\t]+|\||,/, $line);
         unless ($i++) {
             $columns = \@data;
         } else {
@@ -197,7 +198,7 @@ sub _update {
 sub _create {
     my $args = shift;
 
-    my $checksum = md5_hex($args->{input});
+    my $checksum = md5_hex(encode_utf8($args->{input}));
     my $path = "$tmp/$checksum";
 
     unless (-f $path) {
@@ -221,7 +222,7 @@ sub _get {
         open $fh, $path;
         my $input = do{ local $/; <$fh> };
         close $fh;
-        return $input;
+        return decode_utf8($input);
     }
 
     return undef;
