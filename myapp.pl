@@ -10,13 +10,13 @@ plugin 'PODRenderer';
 # setting
 my $config = {
     type => {
-        area    => { key => 'AreaChart',        name => 'エリア'     },
-        bar     => { key => 'BarChart',         name => '横棒'       },
-        bubble  => { key => 'BubbleChart',      name => 'バブル'     },
-        column  => { key => 'ColumnChart',      name => '縦棒'       },
-        line    => { key => 'LineChart',        name => '折れ線'     },
-        pie     => { key => 'PieChart',         name => 'パイ'       },
-        stepped => { key => 'SteppedAreaChart', name => '階段'       },
+        area    => { key => 'AreaChart',        name => 'エリア', sort => 3 },
+        bar     => { key => 'BarChart',         name => '横棒',   sort => 3 },
+        bubble  => { key => 'BubbleChart',      name => 'バブル', sort => 3 },
+        column  => { key => 'ColumnChart',      name => '縦棒',   sort => 2 },
+        line    => { key => 'LineChart',        name => '折れ線', sort => 1 },
+        pie     => { key => 'PieChart',         name => 'パイ',   sort => 3 },
+        stepped => { key => 'SteppedAreaChart', name => '階段',   sort => 3 },
     },
 };
 
@@ -239,7 +239,9 @@ __DATA__
 <form action="/" method="post">
 <textarea id="input" cols="100" rows="24" name="input"></textarea><br />
 <select name="type">
-% for my $k (keys %{$config->{type}}) {
+
+% my @keys = sort { $config->{type}->{$a}->{sort} <=> $config->{type}->{$b}->{sort} } keys %{$config->{type}};
+% for my $k (@keys) {
   <option value="<%= $k %>"><%= $config->{type}->{$k}->{name} %></option>
 % }
 </select>
@@ -297,7 +299,8 @@ __DATA__
 <form action="/graph/<%= $key %>" method="post">
 <textarea id="input" cols="100" rows="24" name="input"><%= $input %></textarea><br />
 <select name="type">
-% for my $k (keys %{$config->{type}}) {
+% my @keys = sort { $config->{type}->{$a}->{sort} <=> $config->{type}->{$b}->{sort} } keys %{$config->{type}};
+% for my $k (@keys) {
   <option value="<%= $k %>"><%= $config->{type}->{$k}->{name} %></option>
 % }
 </select>
